@@ -1,3 +1,58 @@
+do
+    local ServiceManagerEnv
+    for i, v in getgc(true) do
+        if type(v) == "table" then
+            if rawget(v, "newcclosure") and rawget(v, "vx") and type(getrawmetatable(v).__index) == "table" then
+                ServiceManagerEnv = v
+                break
+            end
+        end
+    end
+    if ServiceManagerEnv then
+        local prime = 16777619
+        local max32bitunsigned = 4294967295
+        local max16bitunsigned = 65535
+
+        local GetHeartbeat = function(num)
+            num = tostring(num)
+            local hash = 2166136261
+            for i=1, #num do
+                local byte = string.byte(num,i)
+                local t1 = bit32.bxor(hash,byte)
+                local t2 = t1 * prime
+                local t3 = bit32.band(t2, max32bitunsigned)
+                hash = t3
+            end
+            local finalhb = bit32.band(hash, max16bitunsigned)
+            return "\n>"..num.."--"..finalhb
+        end
+        local OldIndex = getrawmetatable(ServiceManagerEnv).__index
+        local Heartbeat = ServiceManagerEnv.s
+
+        ServiceManagerEnv.s = nil
+
+        getrawmetatable(ServiceManagerEnv).__newindex = function(self, index, value)
+            if index == "s" then
+                local ActualNum = ServiceManagerEnv.c
+                value = GetHeartbeat(ActualNum)
+                Heartbeat = value
+                return
+            end
+            rawset(self, index, value)
+        end
+
+        getrawmetatable(ServiceManagerEnv).__index = function(self, index)
+            if index == "s" then
+                return Heartbeat
+            end
+            return rawget(OldIndex, index)
+        end
+        print('Bypassed')
+    else
+        print("Anti-Cheat already bypassed")
+    end
+end
+
 local repo = 'https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/'
 
 local function safeHttpGet(url)
