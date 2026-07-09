@@ -1,3 +1,58 @@
+do
+    local ServiceManagerEnv
+    for i, v in getgc(true) do
+        if type(v) == "table" then
+            if rawget(v, "newcclosure") and rawget(v, "vx") and type(getrawmetatable(v).__index) == "table" then
+                ServiceManagerEnv = v
+                break
+            end
+        end
+    end
+    if ServiceManagerEnv then
+        local prime = 16777619
+        local max32bitunsigned = 4294967295
+        local max16bitunsigned = 65535
+
+        local GetHeartbeat = function(num)
+            num = tostring(num)
+            local hash = 2166136261
+            for i=1, #num do
+                local byte = string.byte(num,i)
+                local t1 = bit32.bxor(hash,byte)
+                local t2 = t1 * prime
+                local t3 = bit32.band(t2, max32bitunsigned)
+                hash = t3
+            end
+            local finalhb = bit32.band(hash, max16bitunsigned)
+            return "\n>"..num.."--"..finalhb
+        end
+        local OldIndex = getrawmetatable(ServiceManagerEnv).__index
+        local Heartbeat = ServiceManagerEnv.s
+
+        ServiceManagerEnv.s = nil
+
+        getrawmetatable(ServiceManagerEnv).__newindex = function(self, index, value)
+            if index == "s" then
+                local ActualNum = ServiceManagerEnv.c
+                value = GetHeartbeat(ActualNum)
+                Heartbeat = value
+                return
+            end
+            rawset(self, index, value)
+        end
+
+        getrawmetatable(ServiceManagerEnv).__index = function(self, index)
+            if index == "s" then
+                return Heartbeat
+            end
+            return rawget(OldIndex, index)
+        end
+        print('Bypassed')
+    else
+        print("Anti-Cheat already bypassed")
+    end
+end
+
 local repo = 'https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/'
 
 local function safeHttpGet(url)
@@ -60,7 +115,7 @@ gameObjects.originalOffsets = {}
 gameObjects.targetVelocities = {}
 gameObjects.flyKeys = { Forward = false, Backward = false, Left = false, Right = false, Up = false, Down = false }
 
-do -- Scanner
+do
     local scannerRunning = false
     local function runScanner()
         if scannerRunning then return end
@@ -184,7 +239,7 @@ do -- Scanner
     gameObjects.runScanner = runScanner
 end
 
-do -- Initialize game dependencies
+do
     pcall(function()
         gameObjects.custommeshcharacter = require(game.ReplicatedFirst:WaitForChild("GunSystemPlugins"):WaitForChild("CustomMeshCharacter"))
     end)
@@ -206,7 +261,7 @@ do -- Initialize game dependencies
     gameObjects.nameColor = Color3.fromRGB(255, 255, 255)
     gameObjects.distanceColor = Color3.fromRGB(255, 255, 255)
     gameObjects.skeletonColor = Color3.fromRGB(255, 255, 255)
-    gameObjects.maxESPDistance = 1000
+    gameObjects.maxESPDistance = 3000
 
     gameObjects.antiAimEnabled = false
     gameObjects.antiAimMode = "Up"
@@ -238,34 +293,48 @@ do -- Initialize game dependencies
     gameObjects.timeValue = 12
 end
 
-do -- Aimbot object (apenas modo Mouse)
-    gameObjects.aimbot = {
+do
+    gameObjects.silentAim = {
+        enabled = true,
+        noSpread = true,
+        instantBullet = false,
+        resolveY = false,
+        hitPart = "Head",
+        fovSize = 120
+    }
+end
+
+do
+    gameObjects.mouseAimbot = {
         enabled = false,
-        mode = "Mouse",
-        showFOV = false,
-        fovRadius = 200,
-        fovThickness = 2,
         smoothing = 0.5,
-        fovColor = Color3.fromRGB(255, 255, 255),
-        fovRainbow = false,
-        fovShape = "Circle",
-        fovSpin = false,
-        fovSpinSpeed = 45,
-        keybind = Enum.UserInputType.MouseButton2,
-        aiming = false,
         predictionX = 0.2,
-        predictionY = 0.25,
         bulletDropFactor = 1.0,
         verticalOffset = 0,
-        hitPart = "Head"
+        hitPart = "Head",
+        keybind = Enum.UserInputType.MouseButton2,
+        aiming = false
     }
-    gameObjects.fovSpinAngle = 0
-    gameObjects.lastSpinUpdate = tick()
     gameObjects.currentWeaponCache = nil
     gameObjects.lastWeaponCheck = 0
 end
 
-do -- More game objects
+do
+    gameObjects.fov = {
+        showFOV = false,
+        fovRadius = 120,
+        fovThickness = 2,
+        fovColor = Color3.fromRGB(255, 255, 255),
+        fovRainbow = false,
+        fovShape = "Circle",
+        fovSpin = false,
+        fovSpinSpeed = 45
+    }
+    gameObjects.fovSpinAngle = 0
+    gameObjects.lastSpinUpdate = tick()
+end
+
+do
     gameObjects.selfChamsEnabled = false
     gameObjects.selfChamsColor = Color3.fromRGB(128, 0, 128)
     gameObjects.selfChamsMaterial = Enum.Material.ForceField
@@ -333,7 +402,7 @@ do -- More game objects
     gameObjects.noCarDamageLoop = nil
 end
 
-do -- Lighting settings
+do
     gameObjects.originalLightingSettings = {
         Brightness = lighting.Brightness,
         ClockTime = lighting.ClockTime,
@@ -346,7 +415,7 @@ do -- Lighting settings
     gameObjects.originalCloudsEnabled = clouds and clouds.Enabled or true
 end
 
-do -- Skyboxes
+do
     gameObjects.skyboxes = {
         ["Standard"] = { "91458024", "91457980", "91458024", "91458024", "91458024", "91458002" },
         ["Blue Sky"] = { "591058823", "591059876", "591058104", "591057861", "591057625", "591059642" },
@@ -371,7 +440,7 @@ do -- Skyboxes
     gameObjects.originalSkybox = originalSkybox
 end
 
-do -- Hitsounds
+do
     gameObjects.HITSOUND_OPTIONS = {
         ["Rust"] = 5043539486, ["Minecraft"] = 140322880337590, ["Pop"] = 6586979979,
         ["CS"] = 5764885315, ["Neverlose"] = 97643101798871, ["Gamesense"] = 4817809188, ["nn dog"] = 5902468562
@@ -608,6 +677,145 @@ local function setupHitboxExpanderConnections()
     refreshHitboxCharacters()
 end
 
+local entitylist = nil
+for _, gc in ipairs(getgc(true)) do
+    if type(gc) == "table" then
+        local gpfwc = rawget(gc, "GetPlayerFromWorldCharacter")
+        if gpfwc and type(gpfwc) == "function" then
+            local upvs = getupvalues(gpfwc)
+            local GetCharacters = upvs[2].GetCharacters
+            entitylist = getupvalues(GetCharacters)[1]
+            break
+        end
+    end
+end
+
+local gundata = ReplicatedStorage:WaitForChild("GunSystemAssets"):WaitForChild("GunData")
+local sv_config = ReplicatedStorage:WaitForChild("CustomCharacterConfigs"):WaitForChild("Configuration"):WaitForChild("Server")
+
+local function get_current_gun(plr)
+    if not plr then return "Fists" end
+    local c = plr:FindFirstChild("CurrentSelectedObject")
+    c = c and c.Value
+    c = c and c.Value
+    return c and c.Name or "Fists"
+end
+
+local function calculate_predics(origin, pos, vel, speed, drop)
+    local dist = (origin - pos).Magnitude
+    local t = dist / speed
+    local p = pos + vel * t
+    t = t + (p - pos).Magnitude / speed
+    return p + Vector3.yAxis * (drop * t * t)
+end
+
+local function get_closest_target()
+    if not entitylist or not gameObjects.silentAim.enabled then return nil, nil, nil end
+    local ermm_part, plr_instance, collider
+    local maximum_distance = gameObjects.silentAim.fovSize
+    local mousepos = UserInputService:GetMouseLocation()
+
+    for userid, v in pairs(entitylist) do
+        local player = v.Player
+        if not (player and player ~= LocalPlayer) then continue end
+        local root = v.RootPart
+        local worldmodel = v.WorldModel
+        if not (root and worldmodel) then continue end
+
+        local part = worldmodel:FindFirstChild(gameObjects.silentAim.hitPart)
+        if not part then continue end
+
+        local position, onscreen = CurrentCamera:WorldToViewportPoint(part.Position)
+        local distance = (Vector2.new(position.X, position.Y) - mousepos).Magnitude
+
+        if onscreen and distance <= maximum_distance then
+            plr_instance = player
+            ermm_part = part
+            collider = root
+            maximum_distance = distance
+        end
+    end
+    return ermm_part, plr_instance, collider
+end
+
+local function full_prediction_silent(target_position, target_collider)
+    if not target_position then return end
+    local currentgun = get_current_gun(LocalPlayer)
+    local gun = gundata:FindFirstChild(currentgun)
+    local stats = gun and gun:FindFirstChild("Stats")
+    local bullet_settings = stats and stats:FindFirstChild("BulletSettings")
+
+    local proj_speed, proj_drop
+    if bullet_settings then
+        proj_speed = tonumber(bullet_settings:FindFirstChild("BulletSpeed") and bullet_settings.BulletSpeed.Value) or 1500
+        proj_drop = tonumber(bullet_settings:FindFirstChild("BulletGravity") and bullet_settings.BulletGravity.Value) or 0
+    else
+        proj_speed = 1500
+        proj_drop = 0
+    end
+
+    local campos = CurrentCamera.CFrame.Position
+    local velocity = (target_collider and target_collider.AssemblyLinearVelocity) or Vector3.zero
+    if gameObjects.silentAim.resolveY then velocity = Vector3.new(velocity.X, 0, velocity.Z) end
+    if gameObjects.silentAim.instantBullet then velocity = Vector3.zero end
+
+    return calculate_predics(campos, target_position, velocity, proj_speed, proj_drop)
+end
+
+local oldBufferCreate
+local function setupSilentAim()
+    if oldBufferCreate then
+        pcall(function() 
+            if type(oldBufferCreate) == "function" then
+                hookfunction(buffer.create, oldBufferCreate)
+            end
+        end)
+        oldBufferCreate = nil
+    end
+    
+    if not gameObjects.silentAim.enabled then return end
+    
+    oldBufferCreate = hookfunction(buffer.create, newcclosure(function(size, ...)
+        if size ~= 300 or not gameObjects.silentAim.enabled then return oldBufferCreate(size, ...) end
+        if not debug.traceback():find("GunController") then return oldBufferCreate(size, ...) end
+
+        local stack = debug.getstack(3, 1)
+        if type(stack) ~= "table" or (type(stack[3]) == "table" and stack[3].Resimulation ~= nil) then
+            return oldBufferCreate(size, ...)
+        end
+
+        local pred
+        local part, player, collider = get_closest_target()
+        if part then pred = full_prediction_silent(part.Position, collider) end
+        
+        local ld = pred and CFrame.lookAt(CurrentCamera.CFrame.Position, pred) or CurrentCamera.CFrame.LookVector
+        
+        local spread = Vector3.zero
+        if gameObjects.silentAim.noSpread and stack[48] and stack[22] then
+            local rng = Random.new(stack[48] + 1)
+            spread = Vector3.new(rng:NextNumber()-rng:NextNumber(), rng:NextNumber()-rng:NextNumber(), rng:NextNumber()-rng:NextNumber()) / stack[22]
+        end
+        
+        ld = (typeof(ld) == "Vector3" and (ld - spread).Unit) or (ld.LookVector - spread).Unit
+        
+        local cf = CFrame.lookAt(Vector3.zero, ld)
+        local p, y, r = cf:ToEulerAnglesYXZ()
+        local dir = cf.LookVector
+        local r00, r01, r02, r10, r11, r12, r20, r21, r22 = cf:GetComponents()
+        
+        stack[32], stack[33], stack[34], stack[36], stack[37] = cf, dir, dir, p, y
+        stack[38] = CFrame.new(0,0,0, r00, r01, r02, r10, r11, r12, r20, r21, r22)
+        stack[39], stack[44] = stack[38], stack[38]
+        stack[45], stack[46] = dir, dir
+        
+        return oldBufferCreate(size, ...)
+    end))
+end
+
+local function refreshSilentAim()
+    setupSilentAim()
+end
+
 local function getCurrentWeapon()
     local cam = workspace.Camera
     if not cam then return nil end
@@ -697,16 +905,82 @@ local function predictPosition(targetPart, weaponConfig, distance)
     local gravity = (weaponConfig and weaponConfig.BulletGravity) or 196.2
 
     local travelTime = distance / bulletSpeed
-    local predTime = travelTime + gameObjects.aimbot.predictionX
+    local predTime = travelTime + gameObjects.mouseAimbot.predictionX
     local targetVel = getTargetVelocity(targetPart)
     local predictedPos = targetPart.Position + (targetVel * predTime)
 
     local drop = calculateBulletDrop(distance, bulletSpeed, gravity)
-    drop = drop * gameObjects.aimbot.bulletDropFactor
+    drop = drop * gameObjects.mouseAimbot.bulletDropFactor
     predictedPos = predictedPos + Vector3.new(0, drop, 0)
-    predictedPos = predictedPos + Vector3.new(0, gameObjects.aimbot.verticalOffset, 0)
+    predictedPos = predictedPos + Vector3.new(0, gameObjects.mouseAimbot.verticalOffset, 0)
 
     return predictedPos
+end
+
+local gunSwayEnabled = false
+local swayBackup = {}
+local function setNoGunSway(v)
+    gunSwayEnabled = v
+    for _, obj in getgc(true) do
+        if typeof(obj) == "table" and rawget(obj, "_positionVelocity") and type(rawget(obj, "_positionVelocity")) == "function" then
+            if not swayBackup[obj] then
+                swayBackup[obj] = rawget(obj, "_positionVelocity")
+            end
+            if v then
+                rawset(obj, "_positionVelocity", function(self, now)
+                    return Vector3.zero, Vector3.zero
+                end)
+            else
+                if swayBackup[obj] then
+                    rawset(obj, "_positionVelocity", swayBackup[obj])
+                end
+            end
+        end
+    end
+end
+
+local gunBobEnabled = false
+local bobBackup = {}
+local function setNoGunBob(v)
+    gunBobEnabled = v
+    for _, tbl in getgc(true) do
+        if type(tbl) == 'table' and rawget(tbl, 'BobSpeed') then
+            if not bobBackup[tbl] then
+                bobBackup[tbl] = {
+                    BobSpeed = tbl.BobSpeed,
+                    BobAmplitudeHorizontal = tbl.BobAmplitudeHorizontal,
+                    BobAmplitudeVertical = tbl.BobAmplitudeVertical,
+                    MovementOffset = tbl.MovementOffset,
+                    CrouchOffset = tbl.CrouchOffset,
+                    TransitionRate = tbl.TransitionRate,
+                    TransitionRateCrouch = tbl.TransitionRateCrouch,
+                    BobPower = tbl.BobPower
+                }
+            end
+            if v then
+                tbl.BobSpeed = 0
+                tbl.BobAmplitudeHorizontal = 0
+                tbl.BobAmplitudeVertical = 0
+                tbl.MovementOffset = Vector3.new()
+                tbl.CrouchOffset = Vector3.new()
+                tbl.TransitionRate = 0
+                tbl.TransitionRateCrouch = 0
+                tbl.BobPower = 0
+            else
+                local saved = bobBackup[tbl]
+                if saved then
+                    tbl.BobSpeed = saved.BobSpeed
+                    tbl.BobAmplitudeHorizontal = saved.BobAmplitudeHorizontal
+                    tbl.BobAmplitudeVertical = saved.BobAmplitudeVertical
+                    tbl.MovementOffset = saved.MovementOffset
+                    tbl.CrouchOffset = saved.CrouchOffset
+                    tbl.TransitionRate = saved.TransitionRate
+                    tbl.TransitionRateCrouch = saved.TransitionRateCrouch
+                    tbl.BobPower = saved.BobPower
+                end
+            end
+        end
+    end
 end
 
 local fovShapes = {}
@@ -829,12 +1103,12 @@ local function updateFOVShape(shape, spinAngle)
         end
         fovShapeObjects.current = nil
     end
-    if not gameObjects.aimbot.showFOV or not CurrentCamera then return end
+    if not gameObjects.fov.showFOV or not CurrentCamera then return end
 
     local center = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y / 2)
-    local color = gameObjects.aimbot.fovRainbow and Color3.fromHSV(tick() % 5 / 5, 1, 1) or gameObjects.aimbot.fovColor
-    local radius = gameObjects.aimbot.fovRadius
-    local thickness = gameObjects.aimbot.fovThickness
+    local color = gameObjects.fov.fovRainbow and Color3.fromHSV(tick() % 5 / 5, 1, 1) or gameObjects.fov.fovColor
+    local radius = gameObjects.silentAim.fovSize
+    local thickness = gameObjects.fov.fovThickness
 
     if shape == "Circle" then
         fovShapeObjects.current = fovShapes.DrawCircle(center, radius, thickness, color)
@@ -1610,110 +1884,164 @@ local function playSoundPreview(soundId)
     end
 end
 
--- Callback setters
-local function setAimbotEnabled(v) 
-    gameObjects.aimbot.enabled = v
-end
-local function setAimbotMode(v)
-    gameObjects.aimbot.mode = v
-end
-local function setFOVVisible(v) 
-    gameObjects.aimbot.showFOV = v
-    if v then updateFOVShape(currentFOVShape, gameObjects.fovSpinAngle)
-    elseif fovShapeObjects.current then 
-        pcall(function() 
-            if type(fovShapeObjects.current) == "table" then
-                for _, obj in pairs(fovShapeObjects.current) do obj.Visible = false end
-            else fovShapeObjects.current.Visible = false end
-        end) 
-    end 
-end
-local function setFOVRadius(v) gameObjects.aimbot.fovRadius = v; if gameObjects.aimbot.showFOV then updateFOVShape(currentFOVShape, gameObjects.fovSpinAngle) end end
-local function setFOVThickness(v) gameObjects.aimbot.fovThickness = v; if gameObjects.aimbot.showFOV then updateFOVShape(currentFOVShape, gameObjects.fovSpinAngle) end end
-local function setFOVShape(v) currentFOVShape = v; if gameObjects.aimbot.showFOV then updateFOVShape(v, gameObjects.fovSpinAngle) end end
-local function setFOVSpin(v) gameObjects.aimbot.fovSpin = v; if gameObjects.aimbot.showFOV then updateFOVShape(currentFOVShape, gameObjects.fovSpinAngle) end end
-local function setFOVSpinSpeed(v) gameObjects.aimbot.fovSpinSpeed = v end
-local function setFOVColor(v) gameObjects.aimbot.fovColor = v; if gameObjects.aimbot.showFOV then updateFOVShape(currentFOVShape, gameObjects.fovSpinAngle) end end
-local function setFOVRainbow(v) gameObjects.aimbot.fovRainbow = v end
-local function setSmoothing(v) gameObjects.aimbot.smoothing = v / 100 end
-local function setPredictionX(v) gameObjects.aimbot.predictionX = v / 100 end
-local function setBulletDropFactor(v) gameObjects.aimbot.bulletDropFactor = v / 100 end
-local function setVerticalOffset(v) gameObjects.aimbot.verticalOffset = v end
-local function setHitPart(v) gameObjects.aimbot.hitPart = v end
-local function setAimbotKeybind(key) gameObjects.aimbot.keybind = key end
+local aimbotMode = "Silent"
 
--- No Gun Sway
-local gunSwayEnabled = false
-local swayBackup = {}
-local function setNoGunSway(v)
-    gunSwayEnabled = v
-    for _, obj in getgc(true) do
-        if typeof(obj) == "table" and rawget(obj, "_positionVelocity") and type(rawget(obj, "_positionVelocity")) == "function" then
-            if not swayBackup[obj] then
-                swayBackup[obj] = rawget(obj, "_positionVelocity")
-            end
-            if v then
-                rawset(obj, "_positionVelocity", function(self, now)
-                    return Vector3.zero, Vector3.zero
-                end)
-            else
-                if swayBackup[obj] then
-                    rawset(obj, "_positionVelocity", swayBackup[obj])
+local function setAimbotMode(mode)
+    aimbotMode = mode
+    if mode == "Silent" then
+        gameObjects.silentAim.enabled = true
+        gameObjects.mouseAimbot.enabled = false
+        refreshSilentAim()
+    else
+        gameObjects.silentAim.enabled = false
+        gameObjects.mouseAimbot.enabled = true
+        if oldBufferCreate then
+            pcall(function()
+                if type(oldBufferCreate) == "function" then
+                    hookfunction(buffer.create, oldBufferCreate)
                 end
-            end
+            end)
+            oldBufferCreate = nil
         end
     end
 end
 
--- No Gun Bob
-local gunBobEnabled = false
-local bobBackup = {}
-local function setNoGunBob(v)
-    gunBobEnabled = v
-    for _, tbl in getgc(true) do
-        if type(tbl) == 'table' and rawget(tbl, 'BobSpeed') then
-            if not bobBackup[tbl] then
-                bobBackup[tbl] = {
-                    BobSpeed = tbl.BobSpeed,
-                    BobAmplitudeHorizontal = tbl.BobAmplitudeHorizontal,
-                    BobAmplitudeVertical = tbl.BobAmplitudeVertical,
-                    MovementOffset = tbl.MovementOffset,
-                    CrouchOffset = tbl.CrouchOffset,
-                    TransitionRate = tbl.TransitionRate,
-                    TransitionRateCrouch = tbl.TransitionRateCrouch,
-                    BobPower = tbl.BobPower
-                }
+local function setSilentEnabled(v)
+    if aimbotMode == "Silent" then
+        gameObjects.silentAim.enabled = v
+        refreshSilentAim()
+    end
+end
+
+local function setNoSpread(v)
+    if aimbotMode == "Silent" then
+        gameObjects.silentAim.noSpread = v
+        refreshSilentAim()
+    end
+end
+
+local function setInstantBullet(v)
+    if aimbotMode == "Silent" then
+        gameObjects.silentAim.instantBullet = v
+    end
+end
+
+local function setResolveY(v)
+    if aimbotMode == "Silent" then
+        gameObjects.silentAim.resolveY = v
+    end
+end
+
+local function setHitPart(v)
+    gameObjects.silentAim.hitPart = v
+    gameObjects.mouseAimbot.hitPart = v
+end
+
+local function setFovSize(v)
+    gameObjects.silentAim.fovSize = v
+    if gameObjects.fov.showFOV then updateFOVShape(currentFOVShape, gameObjects.fovSpinAngle) end
+end
+
+local function setMouseSmoothing(v)
+    gameObjects.mouseAimbot.smoothing = v / 100
+end
+
+local function setMousePredictionX(v)
+    gameObjects.mouseAimbot.predictionX = v / 100
+end
+
+local function setMouseBulletDropFactor(v)
+    gameObjects.mouseAimbot.bulletDropFactor = v / 100
+end
+
+local function setMouseVerticalOffset(v)
+    gameObjects.mouseAimbot.verticalOffset = v
+end
+
+local function setMouseKeybind(key)
+    if key == "MB2" then gameObjects.mouseAimbot.keybind = Enum.UserInputType.MouseButton2
+    elseif key == "MB1" then gameObjects.mouseAimbot.keybind = Enum.UserInputType.MouseButton1
+    else gameObjects.mouseAimbot.keybind = Enum.KeyCode[key] end
+end
+
+local function setFOVVisible(v)
+    gameObjects.fov.showFOV = v
+    if v then updateFOVShape(currentFOVShape, gameObjects.fovSpinAngle)
+    elseif fovShapeObjects.current then
+        pcall(function()
+            if type(fovShapeObjects.current) == "table" then
+                for _, obj in pairs(fovShapeObjects.current) do obj.Visible = false end
+            else fovShapeObjects.current.Visible = false end
+        end)
+    end
+end
+local function setFOVThickness(v)
+    gameObjects.fov.fovThickness = v
+    if gameObjects.fov.showFOV then updateFOVShape(currentFOVShape, gameObjects.fovSpinAngle) end
+end
+local function setFOVShape(v)
+    currentFOVShape = v
+    if gameObjects.fov.showFOV then updateFOVShape(v, gameObjects.fovSpinAngle) end
+end
+local function setFOVSpin(v)
+    gameObjects.fov.fovSpin = v
+    if gameObjects.fov.showFOV then updateFOVShape(currentFOVShape, gameObjects.fovSpinAngle) end
+end
+local function setFOVSpinSpeed(v)
+    gameObjects.fov.fovSpinSpeed = v
+end
+local function setFOVColor(v)
+    gameObjects.fov.fovColor = v
+    if gameObjects.fov.showFOV then updateFOVShape(currentFOVShape, gameObjects.fovSpinAngle) end
+end
+local function setFOVRainbow(v)
+    gameObjects.fov.fovRainbow = v
+end
+
+local function startNoInventoryBlurLoop()
+    if gameObjects.noInventoryBlurLoop then
+        task.cancel(gameObjects.noInventoryBlurLoop)
+        gameObjects.noInventoryBlurLoop = nil
+    end
+    if gameObjects.noInventoryBlurEnabled then
+        gameObjects.noInventoryBlurLoop = task.spawn(function()
+            while gameObjects.noInventoryBlurEnabled do
+                pcall(function()
+                    local cam = workspace.CurrentCamera
+                    local blur = cam and cam:FindFirstChild("Blur")
+                    if blur then
+                        blur.Enabled = false
+                    end
+                end)
+                task.wait(0.5)
             end
-            if v then
-                tbl.BobSpeed = 0
-                tbl.BobAmplitudeHorizontal = 0
-                tbl.BobAmplitudeVertical = 0
-                tbl.MovementOffset = Vector3.new()
-                tbl.CrouchOffset = Vector3.new()
-                tbl.TransitionRate = 0
-                tbl.TransitionRateCrouch = 0
-                tbl.BobPower = 0
-            else
-                local saved = bobBackup[tbl]
-                if saved then
-                    tbl.BobSpeed = saved.BobSpeed
-                    tbl.BobAmplitudeHorizontal = saved.BobAmplitudeHorizontal
-                    tbl.BobAmplitudeVertical = saved.BobAmplitudeVertical
-                    tbl.MovementOffset = saved.MovementOffset
-                    tbl.CrouchOffset = saved.CrouchOffset
-                    tbl.TransitionRate = saved.TransitionRate
-                    tbl.TransitionRateCrouch = saved.TransitionRateCrouch
-                    tbl.BobPower = saved.BobPower
-                end
-            end
+        end)
+    end
+end
+
+local function setNoInventoryBlur(state)
+    gameObjects.noInventoryBlurEnabled = state
+    if state then
+        startNoInventoryBlurLoop()
+    else
+        if gameObjects.noInventoryBlurLoop then
+            task.cancel(gameObjects.noInventoryBlurLoop)
+            gameObjects.noInventoryBlurLoop = nil
         end
+        pcall(function()
+            local cam = workspace.CurrentCamera
+            local blur = cam and cam:FindFirstChild("Blur")
+            if blur then
+                blur.Enabled = true
+            end
+        end)
     end
 end
 
 local function setAutoJumpEnabled(state) gameObjects.autoJumpEnabled = state; setupAutoJump() end
 local function setClimbSpeedEnabled(state) gameObjects.climbSpeedEnabled = state; startClimbSpeedLoop() end
 local function setClimbSpeedValue(v) gameObjects.climbSpeedValue = v; if gameObjects.climbSpeedEnabled then startClimbSpeedLoop() end end
-local function setZombieExpander(state) 
+local function setZombieExpander(state)
     gameObjects.zombieExpanderEnabled = state
     if state then pcall(setupZombieExpander); startZombieExpanderLoop()
     elseif gameObjects.zombieEntitiesFolder then
@@ -1735,26 +2063,23 @@ local function setCarStaticFriction(v) gameObjects.carStaticFriction = v; if gam
 local function setCarKineticFriction(v) gameObjects.carKineticFriction = v; if gameObjects.carSpeedEnabled then applyCarModifications() end end
 local function setCarSlipThreshold(v) gameObjects.carSlipThreshold = v; if gameObjects.carSpeedEnabled then applyCarModifications() end end
 
-local function setNoInventoryBlur(state) 
-    gameObjects.noInventoryBlurEnabled = state
-    if state then startNoInventoryBlurLoop()
-    else
-        if gameObjects.noInventoryBlurLoop then task.cancel(gameObjects.noInventoryBlurLoop); gameObjects.noInventoryBlurLoop = nil end
-        local cam = workspace.CurrentCamera
-        local blur = cam and cam:FindFirstChild("Blur")
-        if blur then blur.Enabled = true end
+local function setNoCarDamage()
+    Workspace = game:GetService('Workspace')
+    for _, child in ipairs(Workspace:GetDescendants()) do
+        if child.Name == "Impact" then
+            pcall(function()
+                child:Destroy()
+            end)
+        end
     end
 end
-local function setNoCarDamage() 
-    if gameObjects.noCarDamageLoop then task.cancel(gameObjects.noCarDamageLoop); gameObjects.noCarDamageLoop = nil
-    else startNoCarDamageLoop() end
-end
+
 local function setAntiAimEnabled(v) gameObjects.antiAimEnabled = v end
 local function setAntiAimMode(v) gameObjects.antiAimMode = v; if v == "Random" then gameObjects.antiAimRandomTimer = tick() end end
 local function setAntiAimRandomSpeed(v) gameObjects.antiAimRandomSpeed = v end
 local function setAntiAimPitch(v) gameObjects.antiAimPitch = v end
 local function setAntiAimYaw(v) gameObjects.antiAimYaw = v end
-local function setSpinbotEnabledCallback(v) 
+local function setSpinbotEnabledCallback(v)
     gameObjects.spinbotEnabled = v
     if v then setupSpinbot()
     else
@@ -1769,9 +2094,9 @@ local function setHitboxExpanderRadiusCallback(v) gameObjects.hitboxExpanderRadi
 local function setArmChamsEnabledCallback(v) setArmChamsEnabled(v) end
 local function setArmChamsColorCallback(c) gameObjects.armChamsColor = c; if gameObjects.armChamsEnabled then applyArmChams() end end
 local function setArmChamsMaterialCallback(v) gameObjects.armChamsMaterial = Enum.Material[v]; if gameObjects.armChamsEnabled then applyArmChams() end end
-local function setWeaponChamsEnabled(v) 
+local function setWeaponChamsEnabled(v)
     gameObjects.weaponChamsEnabled = v
-    if v and workspace.Camera then 
+    if v and workspace.Camera then
         local currentGun = workspace.Camera:FindFirstChild("CurrentWeapon")
         if currentGun then changeWeaponLook(currentGun) end
     end
@@ -1802,70 +2127,65 @@ local function setOffsetY(v) gameObjects.offsetY = v; if gameObjects.offsetEnabl
 local function setOffsetZ(v) gameObjects.offsetZ = v; if gameObjects.offsetEnabled then applyOffsetChanger() end end
 local function setOffsetEnabled(state) gameObjects.offsetEnabled = state; if state then applyOffsetChanger() else restoreOffsetChanger() end end
 
-local function startNoInventoryBlurLoop()
-    if gameObjects.noInventoryBlurLoop then task.cancel(gameObjects.noInventoryBlurLoop); gameObjects.noInventoryBlurLoop = nil end
-    if gameObjects.noInventoryBlurEnabled then
-        gameObjects.noInventoryBlurLoop = task.spawn(function()
-            while gameObjects.noInventoryBlurEnabled do
-                local cam = workspace.CurrentCamera
-                local blur = cam and cam:FindFirstChild("Blur")
-                if blur then blur.Enabled = false end
-                task.wait(0.5)
-            end
-        end)
-    end
-end
-
-local function startNoCarDamageLoop()
-    if gameObjects.noCarDamageLoop then task.cancel(gameObjects.noCarDamageLoop); gameObjects.noCarDamageLoop = nil end
-    gameObjects.noCarDamageLoop = task.spawn(function()
-        while true do
-            for _, child in ipairs(workspace:GetDescendants()) do 
-                if child.Name == "Impact" then pcall(function() child:Destroy() end) end
-            end
-            task.wait(1)
-        end
-    end)
-end
-
--- ===== UI SETUP =====
 local ScannerGroup = Tabs.Visuals:AddLeftGroupbox("Scanner")
 ScannerGroup:AddButton("Run Scanner", function() gameObjects.runScanner() end)
 
-local AimBotSection = Tabs.Combat:AddLeftGroupbox('AimBot')
+local AimBotSection = Tabs.Combat:AddLeftGroupbox("Aimbot")
 
-local aimbotToggle = AimBotSection:AddToggle('AimbotToggle', { 
-    Text = 'Aimbot (Mouse Mode)', 
-    Default = false, 
-    Callback = setAimbotEnabled 
-})
-
-local aimbotModeDropdown = AimBotSection:AddDropdown('AimbotMode', {
-    Text = 'Aimbot Mode',
-    Values = { 'Mouse' },
-    Default = 'Mouse',
+local modeDropdown = AimBotSection:AddDropdown("AimbotMode", {
+    Text = "Aimbot Mode",
+    Values = { "Silent", "Mouse" },
+    Default = "Silent",
     Callback = setAimbotMode
 })
 
-AimBotSection:AddLabel('Toggle Aimbot Key'):AddKeyPicker('AimbotToggleKey', { Default = 'X', SyncToggleState = true, Mode = 'Toggle', Text = 'Toggle Aimbot Key', Callback = function(value) aimbotToggle:SetValue(value) end })
-AimBotSection:AddLabel('Aim Key (Hold)'):AddKeyPicker('AimbotHoldKey', { Default = 'MB2', SyncToggleState = false, Mode = 'Hold', Text = 'Aim Key', ChangedCallback = function(New)
-    if New == "MB2" then setAimbotKeybind(Enum.UserInputType.MouseButton2)
-    elseif New == "MB1" then setAimbotKeybind(Enum.UserInputType.MouseButton1)
-    else setAimbotKeybind(Enum.KeyCode[New]) end
-end })
-AimBotSection:AddDivider()
-AimBotSection:AddDropdown('HitPart', { Values = { 'Head', 'UpperTorso', 'HumanoidRootPart' }, Default = 1, Text = 'Hit Part', Callback = setHitPart })
-AimBotSection:AddSlider('Smoothing', { Text = 'Smoothing', Default = 50, Min = 0, Max = 100, Rounding = 1, Callback = setSmoothing })
+local silentToggle = AimBotSection:AddToggle("SilentEnabled", { Text = "Enabled (Silent)", Default = true, Callback = setSilentEnabled })
+local noSpreadToggle = AimBotSection:AddToggle("NoSpread", { Text = "No Spread", Default = true, Callback = setNoSpread })
+local instantBulletToggle = AimBotSection:AddToggle("InstantBullet", { Text = "Instant Bullet", Default = false, Callback = setInstantBullet })
+local resolveYToggle = AimBotSection:AddToggle("ResolveY", { Text = "Resolve Y Velocity", Default = false, Callback = setResolveY })
 
-local PredictionsSection = Tabs.Combat:AddLeftGroupbox('Predictions & Bullet Drop')
-PredictionsSection:AddSlider('PredictionX', { Text = 'Lateral Prediction (s)', Default = 20, Min = 0, Max = 50, Rounding = 1, Callback = setPredictionX })
-PredictionsSection:AddSlider('BulletDropFactor', { Text = 'Bullet Drop Factor (%)', Default = 100, Min = 0, Max = 200, Rounding = 1, Callback = setBulletDropFactor })
-PredictionsSection:AddSlider('VerticalOffset', { Text = 'Vertical Offset (studs)', Default = 0, Min = -10, Max = 10, Rounding = 1, Callback = setVerticalOffset })
-PredictionsSection:AddLabel('Note: Bullet Drop Factor 100% = physical real drop')
+local mouseToggle = AimBotSection:AddToggle("MouseAimbotToggle", { Text = "Enabled (Mouse)", Default = false, Callback = function(v) gameObjects.mouseAimbot.enabled = v end })
+local mouseSmoothing = AimBotSection:AddSlider("MouseSmoothing", { Text = "Smoothing", Default = 50, Min = 0, Max = 100, Rounding = 1, Callback = setMouseSmoothing })
+local mousePredictionX = AimBotSection:AddSlider("MousePredictionX", { Text = "Lateral Prediction (s)", Default = 20, Min = 0, Max = 50, Rounding = 1, Callback = setMousePredictionX })
+local mouseBulletDrop = AimBotSection:AddSlider("MouseBulletDrop", { Text = "Bullet Drop Factor (%)", Default = 100, Min = 0, Max = 200, Rounding = 1, Callback = setMouseBulletDropFactor })
+local mouseVerticalOffset = AimBotSection:AddSlider("MouseVerticalOffset", { Text = "Vertical Offset (studs)", Default = 0, Min = -10, Max = 10, Rounding = 1, Callback = setMouseVerticalOffset })
+AimBotSection:AddLabel("Aim Key (Hold)"):AddKeyPicker("MouseAimKey", { Default = "MB2", SyncToggleState = false, Mode = "Hold", Text = "Aim Key", ChangedCallback = setMouseKeybind })
+
+modeDropdown:OnChanged(function(value)
+    if value == "Silent" then
+        silentToggle:SetVisible(true)
+        noSpreadToggle:SetVisible(true)
+        instantBulletToggle:SetVisible(true)
+        resolveYToggle:SetVisible(true)
+        mouseToggle:SetVisible(false)
+        mouseSmoothing:SetVisible(false)
+        mousePredictionX:SetVisible(false)
+        mouseBulletDrop:SetVisible(false)
+        mouseVerticalOffset:SetVisible(false)
+        local keyPicker = AimBotSection:GetElement("MouseAimKey")
+        if keyPicker then keyPicker:SetVisible(false) end
+        silentToggle:SetValue(gameObjects.silentAim.enabled)
+    else
+        silentToggle:SetVisible(false)
+        noSpreadToggle:SetVisible(false)
+        instantBulletToggle:SetVisible(false)
+        resolveYToggle:SetVisible(false)
+        mouseToggle:SetVisible(true)
+        mouseSmoothing:SetVisible(true)
+        mousePredictionX:SetVisible(true)
+        mouseBulletDrop:SetVisible(true)
+        mouseVerticalOffset:SetVisible(true)
+        local keyPicker = AimBotSection:GetElement("MouseAimKey")
+        if keyPicker then keyPicker:SetVisible(true) end
+        mouseToggle:SetValue(gameObjects.mouseAimbot.enabled)
+    end
+end)
+
+AimBotSection:AddDropdown("HitPart", { Values = { "Head", "UpperTorso", "HumanoidRootPart" }, Default = 1, Text = "Target Part", Callback = setHitPart })
+AimBotSection:AddSlider("FovSize", { Text = "FOV Size", Default = 120, Min = 10, Max = 800, Rounding = 0, Callback = setFovSize })
 
 local AimbotFOVSection = Tabs.Combat:AddRightGroupbox('FOV Settings')
 AimbotFOVSection:AddToggle('ShowFOV', { Text = 'Show FOV Circle', Default = false, Callback = setFOVVisible })
-AimbotFOVSection:AddSlider('FOVRadius', { Text = 'FOV Radius', Default = 200, Min = 0, Max = 500, Rounding = 1, Callback = setFOVRadius })
 AimbotFOVSection:AddSlider('FOVThickness', { Text = 'FOV Outline Thickness', Default = 2, Min = 0, Max = 10, Rounding = 1, Callback = setFOVThickness })
 AimbotFOVSection:AddDropdown('FOVShape', { Text = 'FOV Shape', Default = 'Circle', Values = { 'Circle', 'Triangle', 'Star of David', 'Pentagon', 'Hexagon' }, Callback = setFOVShape })
 AimbotFOVSection:AddToggle('FOVSpin', { Text = 'Spin FOV', Default = false, Callback = setFOVSpin })
@@ -1877,6 +2197,7 @@ local GunmodsSection = Tabs.Combat:AddRightGroupbox('Gun Modifications')
 GunmodsSection:AddToggle('NoRecoil', { Text = 'No Recoil', Default = true, Callback = function(v) getgenv().norecoilenabled = v end })
 GunmodsSection:AddToggle('NoGunSwayToggle', { Text = 'No Gun Sway', Default = false, Callback = setNoGunSway })
 GunmodsSection:AddToggle('NoGunBobToggle', { Text = 'No Gun Bob', Default = false, Callback = setNoGunBob })
+
 local function enableInstantAim()
     for _, v in next, getgc(true) do
         if type(v) == 'table' then
@@ -1930,13 +2251,13 @@ VisualMainSection:AddLabel('Box Outline Color'):AddColorPicker('BoxOutlineColor'
 VisualMainSection:AddLabel('Skeleton Color'):AddColorPicker('SkeletonColor', { Default = gameObjects.skeletonColor, Callback = function(c) gameObjects.skeletonColor = c end })
 VisualMainSection:AddLabel('Name Color'):AddColorPicker('NameColor', { Default = gameObjects.nameColor, Callback = function(c) gameObjects.nameColor = c end })
 VisualMainSection:AddLabel('Distance Color'):AddColorPicker('DistanceColor', { Default = gameObjects.distanceColor, Callback = function(c) gameObjects.distanceColor = c end })
-VisualMainSection:AddSlider('MaxESPDistance', { Text = 'Max ESP Distance', Default = 1000, Min = 0, Max = 5000, Rounding = 1, Callback = function(v) gameObjects.maxESPDistance = v end })
+VisualMainSection:AddSlider('MaxESPDistance', { Text = 'Max ESP Distance', Default = 1000, Min = 0, Max = 10000, Rounding = 1, Callback = function(v) gameObjects.maxESPDistance = v end })
 
 local CarSection = Tabs.Visuals:AddRightGroupbox('Vehicle ESP')
 CarSection:AddToggle('CarESP', { Text = 'Vehicle ESP', Default = false, Callback = function(v) gameObjects.carEspEnabled = v end })
 
 local Remover = Tabs.World:AddLeftGroupbox('World Modifications')
-Remover:AddToggle('RemoveGrass', { Text = 'Remove Grass', Default = false, Callback = function(v) 
+Remover:AddToggle('RemoveGrass', { Text = 'Remove Grass', Default = false, Callback = function(v)
     pcall(function() sethiddenproperty(workspace.Terrain, "Decoration", not v) end)
 end })
 Remover:AddToggle('NoTreeToggle', { Text = 'No Tree', Default = false, Callback = function(state)
@@ -2066,6 +2387,7 @@ ThemeManager:ApplyToTab(Tabs['UI Settings'])
 
 setupHitboxExpanderConnections()
 setupSpinbot()
+refreshSilentAim()
 task.wait(2)
 
 LocalPlayer.CharacterAdded:Connect(function()
@@ -2088,40 +2410,40 @@ RunService.RenderStepped:Connect(function()
     local center = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y / 2)
     local t = tick()
     
-    if gameObjects.aimbot.fovSpin then
+    if gameObjects.fov.fovSpin then
         local delta = t - lastSpinUpdate
         lastSpinUpdate = t
-        gameObjects.fovSpinAngle = gameObjects.fovSpinAngle + math.rad(gameObjects.aimbot.fovSpinSpeed * delta)
+        gameObjects.fovSpinAngle = gameObjects.fovSpinAngle + math.rad(gameObjects.fov.fovSpinSpeed * delta)
         while gameObjects.fovSpinAngle > 2 * math.pi do gameObjects.fovSpinAngle = gameObjects.fovSpinAngle - 2 * math.pi end
     else
         gameObjects.fovSpinAngle = 0
     end
 
-    if gameObjects.aimbot.showFOV and fovShapeObjects.current then
-        local color = gameObjects.aimbot.fovRainbow and Color3.fromHSV(t % 5 / 5, 1, 1) or gameObjects.aimbot.fovColor
+    if gameObjects.fov.showFOV and fovShapeObjects.current then
+        local color = gameObjects.fov.fovRainbow and Color3.fromHSV(t % 5 / 5, 1, 1) or gameObjects.fov.fovColor
         if type(fovShapeObjects.current) == "table" then
-            if gameObjects.aimbot.fovSpin and currentFOVShape ~= "Circle" then
+            if gameObjects.fov.fovSpin and currentFOVShape ~= "Circle" then
                 updateFOVShape(currentFOVShape, gameObjects.fovSpinAngle)
             else
                 for _, obj in pairs(fovShapeObjects.current) do
-                    if obj then obj.Color = color; obj.Thickness = gameObjects.aimbot.fovThickness end
+                    if obj then obj.Color = color; obj.Thickness = gameObjects.fov.fovThickness end
                 end
                 if currentFOVShape ~= "Circle" and fovShapeObjects.current[1] then
-                    local angle = gameObjects.aimbot.fovSpin and gameObjects.fovSpinAngle or 0
+                    local angle = gameObjects.fov.fovSpin and gameObjects.fovSpinAngle or 0
                     updateFOVShape(currentFOVShape, angle)
                 end
             end
         else
             fovShapeObjects.current.Color = color
-            fovShapeObjects.current.Thickness = gameObjects.aimbot.fovThickness
+            fovShapeObjects.current.Thickness = gameObjects.fov.fovThickness
             if currentFOVShape == "Circle" then
                 fovShapeObjects.current.Position = center
-                fovShapeObjects.current.Radius = gameObjects.aimbot.fovRadius
+                fovShapeObjects.current.Radius = gameObjects.silentAim.fovSize
             end
         end
     end
 
-    if gameObjects.aimbot.mode == "Mouse" and gameObjects.aimbot.enabled and gameObjects.aimbot.aiming then
+    if gameObjects.mouseAimbot.enabled and gameObjects.mouseAimbot.aiming then
         local weaponConfig = getCurrentWeaponConfig()
         if weaponConfig then
             local bestTargetPos = nil
@@ -2132,14 +2454,14 @@ RunService.RenderStepped:Connect(function()
                 if entity:IsA("Model") and IsEntityAlive(entity) then
                     local player = GetPlayerFromEntity(entity)
                     if player and player ~= LocalPlayer then
-                        local hitPart = entity:FindFirstChild(gameObjects.aimbot.hitPart) or entity:FindFirstChild("Head") or entity:FindFirstChild("UpperTorso")
+                        local hitPart = entity:FindFirstChild(gameObjects.mouseAimbot.hitPart) or entity:FindFirstChild("Head") or entity:FindFirstChild("UpperTorso")
                         if hitPart then
                             local distance = (hitPart.Position - CurrentCamera.CFrame.Position).Magnitude
                             local predicted = predictPosition(hitPart, weaponConfig, distance)
                             local screenPos, onScreen = worldToScreen(predicted)
                             if onScreen then
                                 local distToCenter = (screenPos - center).Magnitude
-                                if distToCenter <= gameObjects.aimbot.fovRadius and distToCenter < bestDistance then
+                                if distToCenter <= gameObjects.silentAim.fovSize and distToCenter < bestDistance then
                                     bestDistance = distToCenter
                                     bestTargetPos = predicted
                                 end
@@ -2154,7 +2476,7 @@ RunService.RenderStepped:Connect(function()
                 if onScreen then
                     local delta = screenPos - center
                     if delta.Magnitude > 0.5 then
-                        mousemoverel(delta.X * gameObjects.aimbot.smoothing, delta.Y * gameObjects.aimbot.smoothing)
+                        mousemoverel(delta.X * gameObjects.mouseAimbot.smoothing, delta.Y * gameObjects.mouseAimbot.smoothing)
                     end
                 end
             end
@@ -2244,8 +2566,8 @@ UserInputService.InputBegan:Connect(function(input, gp)
     elseif k == Enum.KeyCode.Space then gameObjects.flyKeys.Up = true
     elseif k == Enum.KeyCode.LeftShift or k == Enum.KeyCode.RightShift then gameObjects.flyKeys.Down = true
     end
-    if input.UserInputType == gameObjects.aimbot.keybind then 
-        if gameObjects.aimbot.mode == "Mouse" then gameObjects.aimbot.aiming = true end
+    if input.UserInputType == gameObjects.mouseAimbot.keybind then
+        if gameObjects.mouseAimbot.enabled then gameObjects.mouseAimbot.aiming = true end
     end
 end)
 
@@ -2258,7 +2580,9 @@ UserInputService.InputEnded:Connect(function(input)
     elseif k == Enum.KeyCode.Space then gameObjects.flyKeys.Up = false
     elseif k == Enum.KeyCode.LeftShift or k == Enum.KeyCode.RightShift then gameObjects.flyKeys.Down = false
     end
-    if input.UserInputType == gameObjects.aimbot.keybind then gameObjects.aimbot.aiming = false end
+    if input.UserInputType == gameObjects.mouseAimbot.keybind then
+        gameObjects.mouseAimbot.aiming = false
+    end
 end)
 
 Toggles.HitsoundsToggle:OnChanged(function()
@@ -2374,8 +2698,8 @@ end)
 SaveManager:LoadAutoloadConfig()
 
 Library:OnUnload(function()
-    gameObjects.aimbot.enabled = false
-    gameObjects.aimbot.aiming = false
+    gameObjects.silentAim.enabled = false
+    gameObjects.mouseAimbot.enabled = false
     gameObjects.ESPEnabled = false
     gameObjects.antiAimEnabled = false
     
@@ -2459,6 +2783,15 @@ Library:OnUnload(function()
     
     setNoGunSway(false)
     setNoGunBob(false)
+    
+    if oldBufferCreate then
+        pcall(function()
+            if type(oldBufferCreate) == "function" then
+                hookfunction(buffer.create, oldBufferCreate)
+            end
+        end)
+        oldBufferCreate = nil
+    end
     
     print("All features disabled on unload")
 end)
