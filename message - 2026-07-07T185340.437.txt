@@ -305,21 +305,6 @@ do
 end
 
 do
-    gameObjects.mouseAimbot = {
-        enabled = false,
-        smoothing = 0.5,
-        predictionX = 0.2,
-        bulletDropFactor = 1.0,
-        verticalOffset = 0,
-        hitPart = "Head",
-        keybind = Enum.UserInputType.MouseButton2,
-        aiming = false
-    }
-    gameObjects.currentWeaponCache = nil
-    gameObjects.lastWeaponCheck = 0
-end
-
-do
     gameObjects.fov = {
         showFOV = false,
         fovRadius = 120,
@@ -814,107 +799,6 @@ end
 
 local function refreshSilentAim()
     setupSilentAim()
-end
-
-local function getCurrentWeapon()
-    local cam = workspace.Camera
-    if not cam then return nil end
-    local currentWeaponObj = cam:FindFirstChild("CurrentWeapon")
-    if not currentWeaponObj then return nil end
-    local pointer = currentWeaponObj:FindFirstChild("Pointer")
-    if pointer and pointer:IsA("ObjectValue") and pointer.Value then
-        return pointer.Value
-    end
-    return nil
-end
-
-local function getNumberValue(instance)
-    if not instance then return nil end
-    if instance:IsA("NumberValue") or instance:IsA("IntValue") then
-        return instance.Value
-    end
-    return tonumber(instance.Value)
-end
-
-local function getWeaponBulletSettings(weaponName)
-    local gunSystem = ReplicatedStorage:FindFirstChild("GunSystemAssets")
-    if not gunSystem then return nil end
-    local gunData = gunSystem:FindFirstChild("GunData")
-    if not gunData then return nil end
-
-    local weaponFolder = gunData:FindFirstChild(weaponName)
-    if not weaponFolder then return nil end
-
-    local stats = weaponFolder:FindFirstChild("Stats")
-    if not stats then return nil end
-    local bulletSettings = stats:FindFirstChild("BulletSettings")
-    if not bulletSettings then return nil end
-
-    local speedObj = bulletSettings:FindFirstChild("BulletSpeed")
-    local gravityObj = bulletSettings:FindFirstChild("BulletGravity")
-
-    local bulletSpeed = getNumberValue(speedObj) or 2500
-    local bulletGravity = getNumberValue(gravityObj) or 196.2
-
-    return { BulletSpeed = bulletSpeed, BulletGravity = bulletGravity }
-end
-
-local function getCurrentWeaponConfig()
-    local now = tick()
-    if now - gameObjects.lastWeaponCheck > 0.3 then
-        local weapon = getCurrentWeapon()
-        if weapon then
-            gameObjects.currentWeaponCache = getWeaponBulletSettings(weapon.Name)
-        else
-            gameObjects.currentWeaponCache = nil
-        end
-        gameObjects.lastWeaponCheck = now
-    end
-    return gameObjects.currentWeaponCache
-end
-
-local function getTargetVelocity(part)
-    if not part then return Vector3.zero end
-    local now = tick()
-    local data = gameObjects.targetVelocities[part]
-    if data then
-        local delta = now - data.time
-        if delta > 0 and delta < 0.2 then
-            local vel = (part.Position - data.pos) / delta
-            if vel.Magnitude > 80 then vel = vel.Unit * 80 end
-            data.pos = part.Position
-            data.time = now
-            data.vel = vel
-            return vel
-        end
-    end
-    gameObjects.targetVelocities[part] = { pos = part.Position, time = now, vel = Vector3.zero }
-    return Vector3.zero
-end
-
-local function calculateBulletDrop(distance, bulletSpeed, gravity)
-    local travelTime = distance / bulletSpeed
-    local drop = 0.5 * gravity * travelTime * travelTime
-    return drop
-end
-
-local function predictPosition(targetPart, weaponConfig, distance)
-    if not targetPart then return targetPart and targetPart.Position end
-
-    local bulletSpeed = (weaponConfig and weaponConfig.BulletSpeed) or 2500
-    local gravity = (weaponConfig and weaponConfig.BulletGravity) or 196.2
-
-    local travelTime = distance / bulletSpeed
-    local predTime = travelTime + gameObjects.mouseAimbot.predictionX
-    local targetVel = getTargetVelocity(targetPart)
-    local predictedPos = targetPart.Position + (targetVel * predTime)
-
-    local drop = calculateBulletDrop(distance, bulletSpeed, gravity)
-    drop = drop * gameObjects.mouseAimbot.bulletDropFactor
-    predictedPos = predictedPos + Vector3.new(0, drop, 0)
-    predictedPos = predictedPos + Vector3.new(0, gameObjects.mouseAimbot.verticalOffset, 0)
-
-    return predictedPos
 end
 
 local gunSwayEnabled = false
@@ -1884,84 +1768,26 @@ local function playSoundPreview(soundId)
     end
 end
 
-local aimbotMode = "Silent"
-
-local function setAimbotMode(mode)
-    aimbotMode = mode
-    if mode == "Silent" then
-        gameObjects.silentAim.enabled = true
-        gameObjects.mouseAimbot.enabled = false
-        refreshSilentAim()
-    else
-        gameObjects.silentAim.enabled = false
-        gameObjects.mouseAimbot.enabled = true
-        if oldBufferCreate then
-            pcall(function()
-                if type(oldBufferCreate) == "function" then
-                    hookfunction(buffer.create, oldBufferCreate)
-                end
-            end)
-            oldBufferCreate = nil
-        end
-    end
-end
-
 local function setSilentEnabled(v)
-    if aimbotMode == "Silent" then
-        gameObjects.silentAim.enabled = v
-        refreshSilentAim()
-    end
+    gameObjects.silentAim.enabled = v
+    refreshSilentAim()
 end
-
 local function setNoSpread(v)
-    if aimbotMode == "Silent" then
-        gameObjects.silentAim.noSpread = v
-        refreshSilentAim()
-    end
+    gameObjects.silentAim.noSpread = v
+    refreshSilentAim()
 end
-
 local function setInstantBullet(v)
-    if aimbotMode == "Silent" then
-        gameObjects.silentAim.instantBullet = v
-    end
+    gameObjects.silentAim.instantBullet = v
 end
-
 local function setResolveY(v)
-    if aimbotMode == "Silent" then
-        gameObjects.silentAim.resolveY = v
-    end
+    gameObjects.silentAim.resolveY = v
 end
-
 local function setHitPart(v)
     gameObjects.silentAim.hitPart = v
-    gameObjects.mouseAimbot.hitPart = v
 end
-
 local function setFovSize(v)
     gameObjects.silentAim.fovSize = v
     if gameObjects.fov.showFOV then updateFOVShape(currentFOVShape, gameObjects.fovSpinAngle) end
-end
-
-local function setMouseSmoothing(v)
-    gameObjects.mouseAimbot.smoothing = v / 100
-end
-
-local function setMousePredictionX(v)
-    gameObjects.mouseAimbot.predictionX = v / 100
-end
-
-local function setMouseBulletDropFactor(v)
-    gameObjects.mouseAimbot.bulletDropFactor = v / 100
-end
-
-local function setMouseVerticalOffset(v)
-    gameObjects.mouseAimbot.verticalOffset = v
-end
-
-local function setMouseKeybind(key)
-    if key == "MB2" then gameObjects.mouseAimbot.keybind = Enum.UserInputType.MouseButton2
-    elseif key == "MB1" then gameObjects.mouseAimbot.keybind = Enum.UserInputType.MouseButton1
-    else gameObjects.mouseAimbot.keybind = Enum.KeyCode[key] end
 end
 
 local function setFOVVisible(v)
@@ -2130,58 +1956,13 @@ local function setOffsetEnabled(state) gameObjects.offsetEnabled = state; if sta
 local ScannerGroup = Tabs.Visuals:AddLeftGroupbox("Scanner")
 ScannerGroup:AddButton("Run Scanner", function() gameObjects.runScanner() end)
 
-local AimBotSection = Tabs.Combat:AddLeftGroupbox("Aimbot")
+local AimBotSection = Tabs.Combat:AddLeftGroupbox("Silent Aim")
 
-local modeDropdown = AimBotSection:AddDropdown("AimbotMode", {
-    Text = "Aimbot Mode",
-    Values = { "Silent", "Mouse" },
-    Default = "Silent",
-    Callback = setAimbotMode
-})
-
-local silentToggle = AimBotSection:AddToggle("SilentEnabled", { Text = "Enabled (Silent)", Default = true, Callback = setSilentEnabled })
-local noSpreadToggle = AimBotSection:AddToggle("NoSpread", { Text = "No Spread", Default = true, Callback = setNoSpread })
-local instantBulletToggle = AimBotSection:AddToggle("InstantBullet", { Text = "Instant Bullet", Default = false, Callback = setInstantBullet })
-local resolveYToggle = AimBotSection:AddToggle("ResolveY", { Text = "Resolve Y Velocity", Default = false, Callback = setResolveY })
-
-local mouseToggle = AimBotSection:AddToggle("MouseAimbotToggle", { Text = "Enabled (Mouse)", Default = false, Callback = function(v) gameObjects.mouseAimbot.enabled = v end })
-local mouseSmoothing = AimBotSection:AddSlider("MouseSmoothing", { Text = "Smoothing", Default = 50, Min = 0, Max = 100, Rounding = 1, Callback = setMouseSmoothing })
-local mousePredictionX = AimBotSection:AddSlider("MousePredictionX", { Text = "Lateral Prediction (s)", Default = 20, Min = 0, Max = 50, Rounding = 1, Callback = setMousePredictionX })
-local mouseBulletDrop = AimBotSection:AddSlider("MouseBulletDrop", { Text = "Bullet Drop Factor (%)", Default = 100, Min = 0, Max = 200, Rounding = 1, Callback = setMouseBulletDropFactor })
-local mouseVerticalOffset = AimBotSection:AddSlider("MouseVerticalOffset", { Text = "Vertical Offset (studs)", Default = 0, Min = -10, Max = 10, Rounding = 1, Callback = setMouseVerticalOffset })
-AimBotSection:AddLabel("Aim Key (Hold)"):AddKeyPicker("MouseAimKey", { Default = "MB2", SyncToggleState = false, Mode = "Hold", Text = "Aim Key", ChangedCallback = setMouseKeybind })
-
-modeDropdown:OnChanged(function(value)
-    if value == "Silent" then
-        silentToggle:SetVisible(true)
-        noSpreadToggle:SetVisible(true)
-        instantBulletToggle:SetVisible(true)
-        resolveYToggle:SetVisible(true)
-        mouseToggle:SetVisible(false)
-        mouseSmoothing:SetVisible(false)
-        mousePredictionX:SetVisible(false)
-        mouseBulletDrop:SetVisible(false)
-        mouseVerticalOffset:SetVisible(false)
-        local keyPicker = AimBotSection:GetElement("MouseAimKey")
-        if keyPicker then keyPicker:SetVisible(false) end
-        silentToggle:SetValue(gameObjects.silentAim.enabled)
-    else
-        silentToggle:SetVisible(false)
-        noSpreadToggle:SetVisible(false)
-        instantBulletToggle:SetVisible(false)
-        resolveYToggle:SetVisible(false)
-        mouseToggle:SetVisible(true)
-        mouseSmoothing:SetVisible(true)
-        mousePredictionX:SetVisible(true)
-        mouseBulletDrop:SetVisible(true)
-        mouseVerticalOffset:SetVisible(true)
-        local keyPicker = AimBotSection:GetElement("MouseAimKey")
-        if keyPicker then keyPicker:SetVisible(true) end
-        mouseToggle:SetValue(gameObjects.mouseAimbot.enabled)
-    end
-end)
-
-AimBotSection:AddDropdown("HitPart", { Values = { "Head", "UpperTorso", "HumanoidRootPart" }, Default = 1, Text = "Target Part", Callback = setHitPart })
+AimBotSection:AddToggle("SilentEnabled", { Text = "Enabled", Default = true, Callback = setSilentEnabled })
+AimBotSection:AddToggle("NoSpread", { Text = "No Spread", Default = true, Callback = setNoSpread })
+AimBotSection:AddToggle("InstantBullet", { Text = "Instant Bullet", Default = false, Callback = setInstantBullet })
+AimBotSection:AddToggle("ResolveY", { Text = "Resolve Y Velocity", Default = false, Callback = setResolveY })
+AimBotSection:AddDropdown("AimPart", { Values = { "Head", "HumanoidRootPart", "UpperTorso" }, Default = 1, Text = "Target Part", Callback = setHitPart })
 AimBotSection:AddSlider("FovSize", { Text = "FOV Size", Default = 120, Min = 10, Max = 800, Rounding = 0, Callback = setFovSize })
 
 local AimbotFOVSection = Tabs.Combat:AddRightGroupbox('FOV Settings')
@@ -2443,52 +2224,6 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    if gameObjects.mouseAimbot.enabled and gameObjects.mouseAimbot.aiming then
-        local weaponConfig = getCurrentWeaponConfig()
-        if weaponConfig then
-            local bestTargetPos = nil
-            local bestDistance = math.huge
-            local entitiesFolder = gameObjects.entitiesfolder
-
-            for _, entity in pairs(entitiesFolder:GetChildren()) do
-                if entity:IsA("Model") and IsEntityAlive(entity) then
-                    local player = GetPlayerFromEntity(entity)
-                    if player and player ~= LocalPlayer then
-                        local hitPart = entity:FindFirstChild(gameObjects.mouseAimbot.hitPart) or entity:FindFirstChild("Head") or entity:FindFirstChild("UpperTorso")
-                        if hitPart then
-                            local distance = (hitPart.Position - CurrentCamera.CFrame.Position).Magnitude
-                            local predicted = predictPosition(hitPart, weaponConfig, distance)
-                            local screenPos, onScreen = worldToScreen(predicted)
-                            if onScreen then
-                                local distToCenter = (screenPos - center).Magnitude
-                                if distToCenter <= gameObjects.silentAim.fovSize and distToCenter < bestDistance then
-                                    bestDistance = distToCenter
-                                    bestTargetPos = predicted
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-
-            if bestTargetPos then
-                local screenPos, onScreen = worldToScreen(bestTargetPos)
-                if onScreen then
-                    local delta = screenPos - center
-                    if delta.Magnitude > 0.5 then
-                        mousemoverel(delta.X * gameObjects.mouseAimbot.smoothing, delta.Y * gameObjects.mouseAimbot.smoothing)
-                    end
-                end
-            end
-        end
-    end
-
-    for part, _ in pairs(gameObjects.targetVelocities) do
-        if not part or not part.Parent then
-            gameObjects.targetVelocities[part] = nil
-        end
-    end
-
     if gameObjects.fullbrightEnabled then
         lighting.Brightness = 10
         lighting.ClockTime = 12
@@ -2566,9 +2301,6 @@ UserInputService.InputBegan:Connect(function(input, gp)
     elseif k == Enum.KeyCode.Space then gameObjects.flyKeys.Up = true
     elseif k == Enum.KeyCode.LeftShift or k == Enum.KeyCode.RightShift then gameObjects.flyKeys.Down = true
     end
-    if input.UserInputType == gameObjects.mouseAimbot.keybind then
-        if gameObjects.mouseAimbot.enabled then gameObjects.mouseAimbot.aiming = true end
-    end
 end)
 
 UserInputService.InputEnded:Connect(function(input)
@@ -2579,9 +2311,6 @@ UserInputService.InputEnded:Connect(function(input)
     elseif k == Enum.KeyCode.D then gameObjects.flyKeys.Right = false
     elseif k == Enum.KeyCode.Space then gameObjects.flyKeys.Up = false
     elseif k == Enum.KeyCode.LeftShift or k == Enum.KeyCode.RightShift then gameObjects.flyKeys.Down = false
-    end
-    if input.UserInputType == gameObjects.mouseAimbot.keybind then
-        gameObjects.mouseAimbot.aiming = false
     end
 end)
 
@@ -2699,7 +2428,6 @@ SaveManager:LoadAutoloadConfig()
 
 Library:OnUnload(function()
     gameObjects.silentAim.enabled = false
-    gameObjects.mouseAimbot.enabled = false
     gameObjects.ESPEnabled = false
     gameObjects.antiAimEnabled = false
     
